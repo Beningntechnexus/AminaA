@@ -1,0 +1,6 @@
+{
+  "name": "MedSpatial AI",
+  "description": "Spatio-Temporal Machine Learning Framework for Region-Specific and Seasonal Disease Diagnosis",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
