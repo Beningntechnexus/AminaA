@@ -1,27 +1,131 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { 
   HeartPulse, Map, BarChart3, Database, MessageSquare, 
-  ShieldCheck, Moon, Sun, Lock, Info, Activity, AlertCircle 
+  ShieldCheck, Moon, Sun, Lock, Info, Activity, AlertCircle,
+  LayoutDashboard, Stethoscope, Bell, Clock, BookmarkCheck,
+  User, Settings, Phone, ChevronDown, Check, Menu, X, ShieldAlert, Sparkles, BookOpen
 } from 'lucide-react';
 import DiagnosticsSuite from './components/DiagnosticsSuite';
 import MapHeatmaps from './components/MapHeatmaps';
 import EpidemiologyCharts from './components/EpidemiologyCharts';
 import AdminSuite from './components/AdminSuite';
 import ChatAssistant from './components/ChatAssistant';
-import { Disease, Outbreak, MLModelMetrics, AuditLog } from './types';
+import DashboardView from './components/DashboardView';
+import { Disease, Outbreak, MLModelMetrics, AuditLog, DiagnoseResponse, Season } from './types';
+
+// Pre-hydrate default predictions so the home view looks exactly like the requested mock UI on load!
+const defaultPredictionResponse: DiagnoseResponse = {
+  unlimitedFutureEnabled: true,
+  location: {
+    country: "Nigeria",
+    state: "Lagos",
+    city: "Lagos City",
+    region: "Lagos, Nigeria",
+    lat: 6.5244,
+    lng: 3.3792
+  },
+  season: "Rainy",
+  extracted: {
+    symptoms: ["fever", "headache", "body_pain", "chills", "fatigue"],
+    duration: "2 Days",
+    severity: "Severe",
+    frequency: "Continuous"
+  },
+  predictions: [
+    {
+      diseaseId: "malaria",
+      name: "Malaria",
+      probability: 91,
+      riskLevel: "High",
+      explanation: {
+        symptomMatch: "Strong alignment with high fever, headache, body pain, chills, and fatigue.",
+        weatherInfluence: "Increased risk due to rainy humidity and stagnant puddle pools.",
+        geographyFactor: "Lagos region holds higher vector risk density.",
+        outbreakImpact: "Identified local outbreaks elevate overall risk profile."
+      },
+      guidance: ["Sleep under insecticide-treated nets (ITNs)", "Clear indoor standing water", "Apply DEET repellents"],
+      prevention: ["Artemisinin-based Combination Therapy (ACT)", "Deploy mosquito larvicides"]
+    },
+    {
+      diseaseId: "typhoid",
+      name: "Typhoid Fever",
+      probability: 82,
+      riskLevel: "High",
+      explanation: {
+        symptomMatch: "Alignment with fever and weak metabolic states.",
+        weatherInfluence: "Sub-optimal drainage and heavy rainfall runoff infiltrating water reservoirs.",
+        geographyFactor: "Sub-Saharan coastal plain density.",
+        outbreakImpact: "Frequent active records on local databases."
+      },
+      guidance: ["Consume boiled/treated water", "Practice strict hand hygiene", "Eat thoroughly cooked hot foods"],
+      prevention: ["Typhoid conjugate vaccination (TCV)", "Proper hygiene sanitation"]
+    },
+    {
+      diseaseId: "dengue",
+      name: "Dengue Fever",
+      probability: 67,
+      riskLevel: "Medium",
+      explanation: {
+        symptomMatch: "Matches skin temperature surges and headache patterns.",
+        weatherInfluence: "Standing rainwater in discarded tires, household containers.",
+        geographyFactor: "Urban zones show elevated breeding parameters.",
+        outbreakImpact: "Moderate seasonal fluctuations."
+      },
+      guidance: ["Eliminate artificial water containers", "Use window screens"],
+      prevention: ["Apply larvicides to non-potable storage", "Use pain relievers other than aspirin"]
+    },
+    {
+      diseaseId: "influenza",
+      name: "Influenza",
+      probability: 45,
+      riskLevel: "Medium",
+      explanation: {
+        symptomMatch: "Respiratory symptom pairs and general fatigue.",
+        weatherInfluence: "Crowded urban centers, seasonal changes in air moisture.",
+        geographyFactor: "Atmospheric shifts.",
+        outbreakImpact: "Standard seasonal pattern."
+      },
+      guidance: ["Practice respiratory etiquette (cover coughs)", "Wash hands frequently"],
+      prevention: ["Receive annual influenza immunization", "Ensure balanced dietary support"]
+    },
+    {
+      diseaseId: "viral_fever",
+      name: "Viral Fever",
+      probability: 32,
+      riskLevel: "Low",
+      explanation: {
+        symptomMatch: "General temperature elevations.",
+        weatherInfluence: "Atmospheric shifts, seasonal weather swings.",
+        geographyFactor: "Global distribution.",
+        outbreakImpact: "Mild base recurrence."
+      },
+      guidance: ["Ensure ample rest", "Maintain fluid balance with Oral Rehydration Salts (ORS)"],
+      prevention: ["Use antipyretics for fever control", "Avoid sharing personal utensils"]
+    }
+  ]
+};
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'diagnostics' | 'heatmap' | 'epidemiology' | 'chat' | 'admin'>('diagnostics');
-  const [darkMode, setDarkMode] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'diagnostics' | 'heatmap' | 'epidemiology' | 'chat' | 'admin' | 'outbreaks' | 'saved' | 'profile'>('dashboard');
+  const [darkMode, setDarkMode] = useState(false); // Start as Light Mode as requested by UI screenshot!
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   
-  // Real-time Database/State values hydrated from Node Express backend
+  // Shared Controlled Diagnostic States to allow home search integration
+  const [symptomsText, setSymptomsText] = useState("I have fever, headache and body pain since 2 days");
+  const [selectedRegion, setSelectedRegion] = useState("Sub-Saharan Rainy Corridor");
+  const [season, setSeason] = useState<Season>("Rainy");
+  const [response, setResponse] = useState<DiagnoseResponse | null>(defaultPredictionResponse);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+
+  // Real-time Database state values
   const [diseases, setDiseases] = useState<Disease[]>([]);
   const [outbreaks, setOutbreaks] = useState<Outbreak[]>([]);
   const [models, setModels] = useState<MLModelMetrics[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Synchronize dynamic parameters from server APIs
+  // Fetch initial databases
   const fetchLocalDatabase = () => {
     Promise.all([
       fetch("/api/diseases").then(r => r.json()),
@@ -36,7 +140,7 @@ export default function App() {
       setLogs(logsData);
     })
     .catch(err => {
-      console.error("Critical: Clinical database sync failed:", err);
+      console.error("Clinical database sync failed:", err);
     })
     .finally(() => {
       setLoading(false);
@@ -57,183 +161,592 @@ export default function App() {
     }
   }, [darkMode]);
 
-  return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      darkMode ? 'bg-[#050B1A] text-slate-100' : 'bg-slate-50 text-slate-800'
-    } font-sans`}>
-      {/* Clinician System Alert Banner */}
-      <div className="bg-sky-950/80 text-sky-400 py-2.5 px-4 text-[10px] font-bold font-mono tracking-widest flex items-center justify-between text-center select-none border-b border-sky-500/20">
-        <div className="flex items-center gap-2 mx-auto">
-          <Activity className="w-3.5 h-3.5 animate-pulse text-sky-500" />
-          <span>MEDSPATIAL AI DIAGNOSTIC GATEWAY • REGION-SPECIFIC METRIC WEIGHTING MATRIX • STATUS: SECURE</span>
-        </div>
-      </div>
+  // Handle Home Search Submit to diagnostics pipeline
+  const handleHomeAnalyze = async (text: string) => {
+    setSymptomsText(text);
+    setActiveTab('diagnostics');
+    setDiagnosticLoading(true);
+    
+    try {
+      const payload = {
+        symptomsText: text,
+        location: {
+          region: selectedRegion || "Sub-Saharan Rainy Corridor",
+          coordinates: "6.5244° N, 3.3792° E",
+          country: "Nigeria"
+        },
+        season: season || "Rainy"
+      };
 
-      {/* Primary Global Navigation Header */}
-      <header className={`border-b ${
-        darkMode ? 'bg-[#050B1A]/80 border-white/10' : 'bg-white/95 border-slate-150'
-      } backdrop-blur sticky top-0 z-50 transition-colors`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          
-          <div className="flex items-center space-x-3.5 select-none hover:opacity-95 transition">
-            <div className="w-11 h-11 bg-sky-500 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.45)]">
-              <HeartPulse className="w-6 h-6 text-white" />
+      const res = await fetch("/api/diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data: DiagnoseResponse = await res.json();
+      setResponse(data);
+      fetchLocalDatabase(); // tick logs count
+    } catch (err) {
+      console.error("Clinical prediction failed from Home trigger:", err);
+    } finally {
+      setDiagnosticLoading(false);
+    }
+  };
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'diagnostics', label: 'Symptom Checker', icon: Stethoscope },
+    { id: 'heatmap', label: 'Health Map', icon: Map },
+    { id: 'epidemiology', label: 'Disease Trends', icon: BarChart3 },
+    { id: 'outbreaks', label: 'Outbreak Alerts', icon: Bell },
+    { id: 'chat', label: 'Medical Chat', icon: MessageSquare },
+    { id: 'history', label: 'History', icon: Clock },
+    { id: 'saved', label: 'Saved Reports', icon: BookmarkCheck },
+    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'admin', label: 'Settings', icon: Settings },
+  ] as const;
+
+  const handleTabChange = (tabId: typeof activeTab) => {
+    setActiveTab(tabId);
+    setMobileSidebarOpen(false);
+  };
+
+  return (
+    <div className={`min-h-screen flex ${
+      darkMode ? 'bg-[#050B13] text-slate-100' : 'bg-[#F8FAFC] text-slate-800'
+    } font-sans`}>
+      
+      {/* LEFT SIDEBAR - Desktop view */}
+      <aside className={`w-72 hidden lg:flex flex-col h-screen sticky top-0 border-r py-6 px-5 shrink-0 overflow-y-auto ${
+        darkMode ? 'bg-[#0A1121] border-white/5' : 'bg-white border-slate-200/60'
+      }`}>
+        {/* LOGO AREA */}
+        <div className="flex items-center space-x-3 select-none mb-8 px-2">
+          <div className="w-12 h-12 bg-sky-500 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(56,189,248,0.3)] animate-pulse">
+            {/* Blue medical shield icon with cross inside */}
+            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor" fillOpacity="0.1" />
+              <path d="M12 8v8M9 12h6" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 leading-none">
+              <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">MedSpatial <span className="text-sky-550">AI</span></h1>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">MedSpatial <span className="text-sky-400">AI</span></h1>
-                <span className="bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[9px] px-1.5 py-0.5 font-bold rounded uppercase tracking-wider">
-                  v3.4-Pro
-                </span>
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1">AI Powered Health Intelligence</p>
+          </div>
+        </div>
+
+        {/* SIDEBAR NAVIGATION ITEMS */}
+        <nav className="flex-1 space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleTabChange(item.id)}
+                className={`w-full flex items-center space-x-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all relative ${
+                  isActive 
+                    ? 'bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow-md shadow-indigo-500/10 font-black' 
+                    : 'text-slate-500 dark:text-slate-450 hover:bg-slate-100/60 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-slate-250'
+                }`}
+              >
+                <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <motion.div 
+                    layoutId="activeIndicator"
+                    className="absolute right-2 w-1.5 h-1.5 rounded-full bg-white"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* EMERGENCY CALL WIDGET */}
+        <div className="mt-8 pt-4 border-t border-slate-150/55 dark:border-white/5 space-y-3.5">
+          <div className="bg-gradient-to-br from-indigo-50/70 to-indigo-100/10 dark:from-indigo-950/20 dark:to-transparent border border-indigo-100/50 dark:border-indigo-900/35 rounded-2xl p-4 text-center relative overflow-hidden">
+            <h5 className="text-[11px] font-black text-indigo-950 dark:text-indigo-200 uppercase tracking-widest font-mono">Need Immediate Help?</h5>
+            <p className="text-[10px] text-slate-400 dark:text-slate-450 mt-1 lines-clamp-2 leading-relaxed">
+              If you are experiencing a medical emergency, please contact your local emergency services.
+            </p>
+            
+            <a 
+              href="tel:112"
+              className="mt-3 inline-flex items-center justify-center gap-1.5 w-full bg-[#3B82F6] hover:bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-sm transition"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              Emergency Contacts
+            </a>
+
+            {/* Float aesthetic custom vector box */}
+            <div className="flex justify-center mt-3 opacity-80 scale-95">
+              <svg width="48" height="32" viewBox="0 0 48 32" fill="none" className="animate-bounce" style={{ animationDuration: '4s' }}>
+                <rect x="6" y="2" width="36" height="26" rx="6" fill="#fecdd3" stroke="#fda4af" strokeWidth="1.5" />
+                <path d="M24 7v16M16 15h16" stroke="#f43f5e" strokeWidth="3.5" strokeLinecap="round" />
+                <circle cx="9" cy="23" r="1.5" fill="#f43f5e" />
+                <circle cx="39" cy="9" r="1.5" fill="#f43f5e" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* MOBILE HEADER & DRAWER DRAWER */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+          <aside className={`w-64 max-w-xs relative flex flex-col h-full p-5 overflow-y-auto ${
+            darkMode ? 'bg-[#0A1121] text-slate-100' : 'bg-white text-slate-800'
+          }`}>
+            <div className="flex justify-between items-center mb-6">
+              <span className="text-xs font-extrabold uppercase tracking-widest text-[#94A3B8]">Menu</span>
+              <button onClick={() => setMobileSidebarOpen(false)} className="p-1.5 rounded-xl hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <nav className="space-y-1.5 flex-1">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleTabChange(item.id)}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                      isActive 
+                        ? 'bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow-md' 
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon className="w-4.5 h-4.5 shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="pt-4 border-t border-slate-150">
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl text-center text-[10px] space-y-2">
+                <p className="text-slate-400 font-medium">Need immediate medical answers?</p>
+                <a href="tel:112" className="block py-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg transition uppercase">
+                  Emergency Contacts
+                </a>
               </div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-semibold">Spatio-Temporal Intelligence</p>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* RIGHT SIDE MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col min-h-screen relative overflow-x-hidden">
+        
+        {/* UPPER STATUS STRIP (Aesthetic details) */}
+        <div className="bg-sky-950/90 text-sky-400 py-2.5 px-4 text-[9px] font-bold font-mono tracking-widest flex items-center justify-between text-center select-none border-b border-sky-500/20 z-20">
+          <div className="flex items-center gap-2 mx-auto">
+            <Activity className="w-3.5 h-3.5 animate-pulse text-sky-400" />
+            <span>MEDSPATIAL AI • CLIMATE VECTOR FORECAST WEIGHTING MATRIX ACTIVE • HIPAA COMPLIANT</span>
+          </div>
+        </div>
+
+        {/* PRIMARY HEADER BAR (Greeting, Notifications, Profile) */}
+        <header className={`py-4 px-6 md:px-8 border-b flex items-center justify-between sticky top-0 z-30 backdrop-blur-md ${
+          darkMode ? 'bg-[#050B13]/85 border-white/5' : 'bg-[#F8FAFC]/90 border-slate-200/60'
+        }`}>
+          {/* Mobile hamburger row */}
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setMobileSidebarOpen(true)}
+              className="p-2 mr-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 shadow-sm lg:hidden focus:outline-none"
+            >
+              <Menu className="w-5 h-5 text-slate-600 dark:text-slate-350" />
+            </button>
+            
+            <div>
+              <h2 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                Good morning, Adaeze 
+                <span className="inline-block animate-[wiggle_1s_infinite]">👋</span>
+              </h2>
+              <p className="text-[10px] md:text-xs text-slate-400 font-semibold dark:text-slate-450 mt-0.5">
+                How are you feeling today? Let's find out.
+              </p>
             </div>
           </div>
 
-          {/* Sub Navigation Tabs (Bento Style) */}
-          <nav className="flex flex-wrap items-center justify-center gap-1 bg-slate-100 dark:bg-slate-900/40 p-1.5 rounded-2xl border border-slate-200/50 dark:border-white/10 overflow-hidden text-xs">
-            <button
-              onClick={() => setActiveTab('diagnostics')}
-              className={`px-4 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-                activeTab === 'diagnostics'
-                  ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(56,189,248,0.35)] font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
+          {/* Core Controls Stack */}
+          <div className="flex items-center space-x-3.5">
+            {/* Notification trigger with count 3 */}
+            <button 
+              onClick={() => {
+                alert("Clinical Diagnostics Hub Notification: 3 new region-specific mosquito vector updates detected near Lagos!");
+              }}
+              className="p-2.5 rounded-full relative transition border shadow-sm cursor-pointer hover:scale-105 active:scale-95 bg-white dark:bg-[#0A1121] border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-300"
             >
-              <HeartPulse className="w-4 h-4 shrink-0" />
-              Diagnostics Suite
+              <Bell className="w-4.5 h-4.5" />
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center animate-pulse">
+                3
+              </span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('heatmap')}
-              className={`px-4 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-                activeTab === 'heatmap'
-                  ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(56,189,248,0.35)] font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <Map className="w-4 h-4 shrink-0" />
-              Hotspot Map
-            </button>
-
-            <button
-              onClick={() => setActiveTab('epidemiology')}
-              className={`px-4 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-                activeTab === 'epidemiology'
-                  ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(56,189,248,0.35)] font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 shrink-0" />
-              Trends & Curves
-            </button>
-
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`px-4 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-                activeTab === 'chat'
-                  ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(56,189,248,0.35)] font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4 shrink-0" />
-              RAG Clinical Chat
-            </button>
-
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={`px-4 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-                activeTab === 'admin'
-                  ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(56,189,248,0.35)] font-bold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <Database className="w-4 h-4 shrink-0" />
-              Admin Commands
-            </button>
-          </nav>
-
-          {/* Theme Switcher & Security Flags */}
-          <div className="flex items-center gap-3">
+            {/* Dark mode switcher */}
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2.5 rounded-xl border transition ${
-                darkMode ? 'bg-slate-900 border-white/10 text-amber-400' : 'bg-slate-50 border-slate-200 text-slate-500'
-              }`}
-              title="Toggle Dark Mode"
+              className="p-2.5 rounded-full transition border shadow-sm cursor-pointer hover:scale-105 active:scale-95 bg-white dark:bg-[#0A1121] border-slate-200 dark:border-white/5 text-slate-550 dark:text-amber-400"
+              title="Toggle theme mode"
             >
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {darkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5 text-[#334155]" />}
             </button>
 
-            <div className="hidden lg:flex items-center gap-1.5 border border-emerald-500/20 px-3 py-2 rounded-xl bg-emerald-500/5 dark:bg-emerald-950/20 text-[10px] uppercase font-bold font-mono tracking-wide text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-              <span>HIPAA SECURED</span>
+            {/* Profile Circle Adaeze */}
+            <div className="flex items-center gap-1 bg-white dark:bg-[#0A1121] py-1 pl-1.5 pr-2.5 rounded-full border border-slate-200 dark:border-white/10 shadow-sm cursor-pointer hover:bg-slate-50 transition">
+              <img 
+                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200" 
+                alt="Adaeze" 
+                className="w-8 h-8 rounded-full object-cover shrink-0 border border-sky-500/20"
+                referrerPolicy="no-referrer"
+              />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 select-none ml-1.5" />
             </div>
           </div>
+        </header>
 
-        </div>
-      </header>
+        {/* MAIN PANEL CONTENT VIEWS */}
+        <main className="flex-1 px-6 md:px-8 py-6 max-w-7xl w-full mx-auto space-y-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center p-20 text-center min-h-[480px]">
+              <Activity className="w-10 h-10 text-sky-500 animate-spin" />
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-350 uppercase tracking-widest mt-4">
+                Hydrating MedSpatial AI Modules
+              </h3>
+              <p className="text-xs text-slate-400 max-w-xs mt-1">
+                Synchronizing live geographic records, local malaria/typhoid outbreaks, and machine learning retrain engines.
+              </p>
+            </div>
+          ) : (
+            <div className="transition-all duration-300">
+              
+              {/* DASHBOARD VIEW */}
+              {activeTab === 'dashboard' && (
+                <DashboardView 
+                  symptomsText={symptomsText}
+                  setSymptomsText={setSymptomsText}
+                  onAnalyze={handleHomeAnalyze}
+                  setActiveTab={setActiveTab}
+                  outbreaks={outbreaks}
+                  loading={diagnosticLoading}
+                />
+              )}
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-20 text-center min-h-[480px]">
-            <Activity className="w-10 h-10 text-sky-500 animate-spin" />
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-350 uppercase tracking-widest mt-4">
-              Synchronizing Pathogen Intelligence Modules
-            </h3>
-            <p className="text-xs text-slate-400 max-w-xs mt-1">
-              Hydrating active disease vectors, local outbreak coordinates, and historical epidemiological curves from security databases.
+              {/* SYMPTOM CHECKER VIEW */}
+              {activeTab === 'diagnostics' && (
+                <div className="space-y-4">
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <HeartPulse className="w-3.5 h-3.5 animate-pulse text-sky-500" />
+                    CLINICAL DIAGNOSTICS PLATFORM
+                  </span>
+                  <DiagnosticsSuite 
+                    onAddDiagnosticQuery={fetchLocalDatabase} 
+                    mockLocations={[]} // loaded internally
+                    symptomsText={symptomsText}
+                    setSymptomsText={setSymptomsText}
+                    selectedRegion={selectedRegion}
+                    setSelectedRegion={setSelectedRegion}
+                    season={season}
+                    setSeason={setSeason}
+                    loading={diagnosticLoading}
+                    setLoading={setDiagnosticLoading}
+                    response={response}
+                    setResponse={setResponse}
+                  />
+                </div>
+              )}
+
+              {/* HEALTH HEATMAP VIEW */}
+              {activeTab === 'heatmap' && (
+                <div className="space-y-4">
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <Map className="w-3.5 h-3.5 text-sky-500" />
+                    SPATIO-TEMPORAL RISK MAPPING
+                  </span>
+                  <MapHeatmaps outbreaks={outbreaks} />
+                </div>
+              )}
+
+              {/* EPIDEMIOLOGY TRENDS VIEW */}
+              {activeTab === 'epidemiology' && (
+                <div className="space-y-4">
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <BarChart3 className="w-3.5 h-3.5 text-sky-500" />
+                    PREDICTIVE MULTI-VARIATE CURVES
+                  </span>
+                  <EpidemiologyCharts />
+                </div>
+              )}
+
+              {/* OUTBREAK ALERTS AUXILIARY VIEW */}
+              {activeTab === 'outbreaks' && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                      <Bell className="w-3.5 h-3.5 text-sky-500 animate-bounce" />
+                      EPIDEMIOLOGICAL ALERT SYSTEM
+                    </span>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white">Active Bio-Surveillance Alerts</h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                      Real-time clinical warnings based on positive symptom diagnostic reports aggregated across climate sectors in the past 14 days.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {outbreaks.map((out) => (
+                      <div key={out.id} className="bento-card p-5 space-y-4 border-amber-500/10 hover:shadow-md transition">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                            {out.riskLevel} Risk Alert
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono font-bold">Aggregated: {out.frequencyCount} reports</span>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <span>🚨</span> {out.diseaseName} Epidemic Trigger
+                          </h4>
+                          <span className="text-xs text-slate-500 block mt-1 font-mono">Geospatial Focus: {out.geographicFocus}</span>
+                        </div>
+
+                        <div className="bg-slate-950/20 p-3 rounded-xl text-xs space-y-1">
+                          <span className="block font-bold text-slate-450 uppercase text-[9px] tracking-widest font-mono">Prevention Recommendations</span>
+                          <p className="text-slate-400 leading-relaxed">
+                            Reinforce vector nets coverage. Treat standard standing puddles with biological larvacides. Distribute prophylactic pills across municipal clinical zones.
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* MEDICAL CHAT VIEW */}
+              {activeTab === 'chat' && (
+                <div className="space-y-4">
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <MessageSquare className="w-3.5 h-3.5 text-sky-500" />
+                    CLINICAL KNOWLEDGE CO-PILOT (RAG-ENABLED)
+                  </span>
+                  <ChatAssistant />
+                </div>
+              )}
+
+              {/* SEARCH HISTORY VIEW */}
+              {activeTab === 'history' && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                      <Clock className="w-3.5 h-3.5 text-sky-500" />
+                      SECURITY DIAGNOSTIC AUDIT LOGS
+                    </span>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white">Pathogen Parsing Chronicles</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Encryption-secured audit database recording all symptom diagnostic submissions, geozones, and confidence scores.
+                    </p>
+                  </div>
+
+                  <div className="bento-card overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 dark:bg-slate-900/60 uppercase text-[9px] font-black tracking-widest text-[#94A3B8] border-b border-light/5">
+                            <th className="p-4">Timestamp</th>
+                            <th className="p-4">Queried Symptoms</th>
+                            <th className="p-4">Extracted Geozone</th>
+                            <th className="p-4">Top Disease Index</th>
+                            <th className="p-4">Risk Severity</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                          {logs.map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition">
+                              <td className="p-4 font-mono text-[10px] text-slate-400">{log.timestamp}</td>
+                              <td className="p-4 text-slate-650 dark:text-slate-300 max-w-xs truncate" title={log.queryText}>
+                                {log.queryText}
+                              </td>
+                              <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">Lagos Corridor (Sub-Saharan Grid)</td>
+                              <td className="p-4 font-semibold text-indigo-500 dark:text-sky-450">{log.predictedClass}</td>
+                              <td className="p-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  log.apiLatencyMs > 500 ? 'bg-rose-500/10 text-rose-500' : 'bg-[#e2f0d9] text-[#385723]'
+                                }`}>
+                                  {log.apiLatencyMs > 500 ? 'High' : 'Moderate'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {logs.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
+                                No diagnostic chronicles registered in local DB.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SAVED REPORTS VIEW */}
+              {activeTab === 'saved' && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                      <BookmarkCheck className="w-3.5 h-3.5 text-sky-500" />
+                      SECURE CLINICAL REPOSITORY
+                    </span>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white">Saved Patient Diagnostic Sheets</h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                      Read-only records safely stored by Adaeze for chronic monitoring, treatment tracking, and physician references.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                      { title: "Adaeze Malaria Panel", date: "May 20, 2025", desc: "Report showing heavy headache, fatigue, and fever since 2 days. Malaria score indexed at 91% probability.", season: "Rainy", syms: ["Fever", "Headache", "Body Pain"] },
+                      { title: "Elder brother Typhoid profile", date: "April 15, 2025", desc: "Patient complained of severe digestive tract cramps and chills after consuming unsafe well waters.", season: "Rainy", syms: ["Cough", "Vomiting", "Weakness"] },
+                      { title: "Aunt Nneka Dengue risk sheet", date: "Jan 12, 2025", desc: "Symptom compilation of joint paint and stiffness on high dry dust vector corridors.", season: "Harmattan", syms: ["Stiff Neck", "Fever"] }
+                    ].map((rep, idx) => (
+                      <div key={idx} className="bento-card p-5 space-y-4 flex flex-col justify-between hover:scale-101 cursor-pointer transition" onClick={() => {
+                        setSymptomsText(rep.desc);
+                        setActiveTab('diagnostics');
+                      }}>
+                        <div>
+                          <div className="flex items-center justify-between border-b border-light/5 pb-2 mb-2 text-slate-400 text-[10px] font-mono">
+                            <span>Saved file: 00{idx + 1}-MD</span>
+                            <span>{rep.date}</span>
+                          </div>
+                          <h4 className="text-base font-black text-slate-800 dark:text-white">{rep.title}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-2">{rep.desc}</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1.5 pt-2">
+                            {rep.syms.map(sy => (
+                              <span key={sy} className="px-2 py-0.5 bg-sky-500/5 text-sky-550 border border-sky-500/10 rounded-md text-[10px] font-bold">
+                                {sy}
+                              </span>
+                            ))}
+                          </div>
+                          <span className="block text-[10px] font-bold text-sky-500 uppercase tracking-widest font-mono pt-1">Click to reload this dataset into checker</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* USER PROFILE VIEW */}
+              {activeTab === 'profile' && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                      <User className="w-3.5 h-3.5 text-sky-500" />
+                      PATIENT ACCOUNT SETTINGS
+                    </span>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white">Adaeze's Clinical Dashboard Account</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Review biological parameters and default geographic zones to expedite diagnostic model matches.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bento-card p-6 space-y-4 md:col-span-1 text-center">
+                      <div className="flex flex-col items-center">
+                        <img 
+                          src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200" 
+                          alt="Adaeze" 
+                          className="w-24 h-24 rounded-full object-cover border-4 border-indigo-500/20"
+                          referrerPolicy="no-referrer"
+                        />
+                        <h4 className="text-lg font-black text-slate-800 dark:text-white mt-4">Adaeze Nwosu</h4>
+                        <span className="text-[10px] text-slate-400 font-mono">Patient Reference: #MEDSPATIAL-82A</span>
+                      </div>
+
+                      <div className="border-t border-light/5 pt-4 space-y-2 text-xs text-left">
+                        <div className="flex justify-between">
+                          <span className="text-slate-450">Primary Region:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Lagos, Nigeria</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-450">Age category:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Young Adult (28)</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-450">HIPAA Flag:</span>
+                          <span className="font-bold text-emerald-500">Secured Encrypted</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bento-card p-6 space-y-4 md:col-span-2">
+                       <h4 className="text-base font-bold text-slate-800 dark:text-white">Active Bio-Security Credentials</h4>
+                       <p className="text-xs text-slate-500 font-medium">
+                         Your patient diagnostics account utilizes biometric encryptions. All queries processed on MedSpatial AI undergo secure SHA-256 validation before sending vector mappings to AI-assistance layers.
+                       </p>
+                       <div className="bg-slate-950/20 p-4 rounded-xl border border-white/5 space-y-2 text-xs">
+                         <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Active Client Certificates</span>
+                         <span className="font-mono text-[10px] text-emerald-400 block">SHA-256 fingerprint: 8a4b:bc4e:93e2:f61d:84ca:ef91:38bc:a5a5</span>
+                         <span className="font-mono text-[10px] text-indigo-400 block text-ellipsis overflow-hidden">Public key code: ssh-rsa AAAAB3NzaLagosNigeriaSpatioTemporalMachineLearningEnsemble...</span>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ADMIN SUITE (Settings tab) */}
+              {activeTab === 'admin' && (
+                <div className="space-y-4">
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <Settings className="w-3.5 h-3.5 text-sky-500" />
+                    SYSTEM SETTINGS & MODEL CALIBRATION CONSOLE
+                  </span>
+                  <AdminSuite 
+                    diseases={diseases}
+                    outbreaks={outbreaks}
+                    models={models}
+                    logs={logs}
+                    onRefreshData={fetchLocalDatabase}
+                  />
+                </div>
+              )}
+
+            </div>
+          )}
+        </main>
+
+        {/* CLINICAL DISCLAIMER BAR IN FOOTER */}
+        <footer className={`border-t py-6 mt-12 transition-colors ${
+          darkMode ? 'bg-[#0A1121]/60 border-white/5 text-slate-500' : 'bg-[#F1F5FD]/60 border-slate-200/60 text-slate-450'
+        }`}>
+          <div className="max-w-7xl mx-auto px-6 md:px-8 text-center space-y-3.5">
+            {/* Disclaimer pill */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#EEF2F6] dark:bg-slate-900 rounded-full border border-slate-200/70 dark:border-white/5 text-[10px] md:text-xs">
+              <ShieldAlert className="w-4 h-4 text-[#3B82F6]" />
+              <p className="text-[#334155] dark:text-slate-300 font-semibold tracking-tight">
+                <b>Disclaimer:</b> This AI prediction is not a medical diagnosis. Please consult a healthcare professional for medical advice.
+              </p>
+            </div>
+            
+            <p className="font-mono text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest leading-relaxed">
+              MedSpatial AI Pro v3.4 • Powered by Spatio-Temporal Machine Learning & Seasonal Vector Models
             </p>
           </div>
-        ) : (
-          <div className="transition-all duration-300">
-            {activeTab === 'diagnostics' && (
-              <DiagnosticsSuite 
-                onAddDiagnosticQuery={fetchLocalDatabase} 
-                mockLocations={[]} // supplied inside helper
-              />
-            )}
-            
-            {activeTab === 'heatmap' && (
-              <MapHeatmaps outbreaks={outbreaks} />
-            )}
+        </footer>
 
-            {activeTab === 'epidemiology' && (
-              <EpidemiologyCharts />
-            )}
+      </div>
 
-            {activeTab === 'chat' && (
-              <ChatAssistant />
-            )}
-
-            {activeTab === 'admin' && (
-              <AdminSuite 
-                diseases={diseases}
-                outbreaks={outbreaks}
-                models={models}
-                logs={logs}
-                onRefreshData={fetchLocalDatabase}
-              />
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Footer Credentials */}
-      <footer className={`border-t py-6 mt-12 transition-colors ${
-        darkMode ? 'bg-slate-900/60 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs space-y-2">
-          <p className="font-mono">
-            MedSpatial AI • Powered by Spatio-Temporal Climate Weighting Factor Matrices & Ensembles
-          </p>
-          <p className="text-[10px] text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Legal Safety Notice: The predictive indices compiled inside this clinical diagnostics portal represent statistic projections based on geographic prevalence data, seasonal vector lifecycles, and user-supplied details. <b>This result is not a medical diagnosis. Please consult a healthcare professional.</b>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

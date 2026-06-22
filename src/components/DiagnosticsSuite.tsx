@@ -3,22 +3,220 @@ import {
   Activity, MapPin, Thermometer, CloudRain, Wind, AlertTriangle, 
   HeartPulse, Navigation, Clock, Phone, ShieldCheck, Sparkles, RefreshCw 
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine 
+} from 'recharts';
 import { DiagnoseResponse, PredictionDetail, LocationInfo, Season, NearbyFacility } from '../types';
 
 interface DiagnosticsSuiteProps {
   onAddDiagnosticQuery: () => void;
   mockLocations: LocationInfo[];
+  symptomsText?: string;
+  setSymptomsText?: (v: string) => void;
+  selectedRegion?: string;
+  setSelectedRegion?: (v: string) => void;
+  season?: Season;
+  setSeason?: (v: Season) => void;
+  loading?: boolean;
+  setLoading?: (v: boolean) => void;
+  response?: DiagnoseResponse | null;
+  setResponse?: (v: DiagnoseResponse | null) => void;
 }
 
-export default function DiagnosticsSuite({ onAddDiagnosticQuery, mockLocations }: DiagnosticsSuiteProps) {
-  const [symptomsText, setSymptomsText] = useState("I have headache, sudden high fever, chills, and muscle weakness with some joint stiffness.");
-  const [selectedRegion, setSelectedRegion] = useState("Sub-Saharan Rainy Corridor");
-  const [season, setSeason] = useState<Season>("Rainy");
-  const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState<DiagnoseResponse | null>(null);
+export default function DiagnosticsSuite({ 
+  onAddDiagnosticQuery, 
+  mockLocations,
+  symptomsText: propsSymptomsText,
+  setSymptomsText: propsSetSymptomsText,
+  selectedRegion: propsSelectedRegion,
+  setSelectedRegion: propsSetSelectedRegion,
+  season: propsSeason,
+  setSeason: propsSetSeason,
+  loading: propsLoading,
+  setLoading: propsSetLoading,
+  response: propsResponse,
+  setResponse: propsSetResponse
+}: DiagnosticsSuiteProps) {
+  const [internalSymptomsText, setInternalSymptomsText] = useState("I have headache, sudden high fever, chills, and muscle weakness with some joint stiffness.");
+  const symptomsText = propsSymptomsText !== undefined ? propsSymptomsText : internalSymptomsText;
+  const setSymptomsText = propsSetSymptomsText !== undefined ? propsSetSymptomsText : setInternalSymptomsText;
+
+  const [internalSelectedRegion, setInternalSelectedRegion] = useState("Sub-Saharan Rainy Corridor");
+  const selectedRegion = propsSelectedRegion !== undefined ? propsSelectedRegion : internalSelectedRegion;
+  const setSelectedRegion = propsSetSelectedRegion !== undefined ? propsSetSelectedRegion : setInternalSelectedRegion;
+
+  const [internalSeason, setInternalSeason] = useState<Season>("Rainy");
+  const season = propsSeason !== undefined ? propsSeason : internalSeason;
+  const setSeason = propsSetSeason !== undefined ? propsSetSeason : setInternalSeason;
+
+  const [internalLoading, setInternalLoading] = useState(false);
+  const loading = propsLoading !== undefined ? propsLoading : internalLoading;
+  const setLoading = propsSetLoading !== undefined ? propsSetLoading : setInternalLoading;
+
+  const [internalResponse, setInternalResponse] = useState<DiagnoseResponse | null>(null);
+  const response = propsResponse !== undefined ? propsResponse : internalResponse;
+  const setResponse = propsSetResponse !== undefined ? propsSetResponse : setInternalResponse;
+
   const [activeDisease, setActiveDisease] = useState<PredictionDetail | null>(null);
   const [gpsSimulating, setGpsSimulating] = useState(false);
   const [facilities, setFacilities] = useState<NearbyFacility[]>([]);
+
+  // State values for the dynamic Symptom Progression Timeline & Intervention simulator
+  const [timelineDays, setTimelineDays] = useState(7);
+  const [simulateTreatment, setSimulateTreatment] = useState(false);
+  const [treatmentDay, setTreatmentDay] = useState(3);
+  const [activePlotSymptoms, setActivePlotSymptoms] = useState<string[]>([]);
+
+  // Synchronize active symptoms for timeline plot when response updates
+  useEffect(() => {
+    if (response?.extracted?.symptoms) {
+      setActivePlotSymptoms(response.extracted.symptoms.slice(0, 4));
+    } else {
+      setActivePlotSymptoms(["fever", "headache", "body_weakness"]);
+    }
+  }, [response]);
+
+  const getBaseSeverity = (symptomName: string, day: number) => {
+    let peakDay = 3;
+    let maxSev = 7;
+    let shift = 1;
+    
+    switch(symptomName.toLowerCase()) {
+      case 'fever':
+        peakDay = Math.round(timelineDays * 0.4);
+        maxSev = 8.5;
+        shift = 1;
+        break;
+      case 'headache':
+        peakDay = Math.round(timelineDays * 0.35);
+        maxSev = 7.0;
+        shift = 1;
+        break;
+      case 'vomiting':
+        peakDay = Math.round(timelineDays * 0.3);
+        maxSev = 7.5;
+        shift = 2;
+        break;
+      case 'diarrhea':
+        peakDay = Math.round(timelineDays * 0.35);
+        maxSev = 9.0;
+        shift = 2;
+        break;
+      case 'stiff_neck':
+        peakDay = Math.round(timelineDays * 0.5);
+        maxSev = 8.0;
+        shift = 2;
+        break;
+      case 'confusion':
+        peakDay = Math.round(timelineDays * 0.6);
+        maxSev = 8.5;
+        shift = 3;
+        break;
+      case 'short_breath':
+        peakDay = Math.round(timelineDays * 0.5);
+        maxSev = 7.8;
+        shift = 2;
+        break;
+      case 'loss_taste_smell':
+        peakDay = Math.round(timelineDays * 0.5);
+        maxSev = 8.0;
+        shift = 3;
+        break;
+      case 'body_weakness':
+      case 'fatigue':
+        peakDay = Math.round(timelineDays * 0.6);
+        maxSev = 8.0;
+        shift = 1;
+        break;
+      case 'cough':
+        peakDay = Math.round(timelineDays * 0.55);
+        maxSev = 6.5;
+        shift = 2;
+        break;
+      default:
+        peakDay = Math.round(timelineDays * 0.45);
+        maxSev = 6.0;
+        shift = 1;
+        break;
+    }
+    
+    if (day < shift) return 0;
+    
+    const sigma = timelineDays * 0.25;
+    const exponent = -Math.pow(day - peakDay, 2) / (2 * Math.pow(sigma, 2));
+    let val = maxSev * Math.exp(exponent);
+    val += Math.sin(day * 0.8) * 0.3;
+    
+    return parseFloat(Math.min(Math.max(val, 0), 10).toFixed(1));
+  };
+
+  const getTimelinePhase = (totalDays: number, isTreated: boolean, intDay: number) => {
+    if (isTreated) {
+      return "Recovery / Resolution Phase";
+    }
+    return "Acute Sepsis Escalation Area";
+  };
+
+  const getPeakSeverityMetric = () => {
+    if (activePlotSymptoms.length === 0) return "N/A";
+    let maxVal = 0;
+    let maxSym = "";
+    let peakDay = 1;
+    
+    for (let d = 1; d <= timelineDays; d++) {
+      activePlotSymptoms.forEach(sym => {
+        let val = getBaseSeverity(sym, d);
+        if (simulateTreatment && d >= treatmentDay) {
+          val = parseFloat((val * Math.pow(0.55, d - treatmentDay)).toFixed(1));
+        }
+        if (val > maxVal) {
+          maxVal = val;
+          maxSym = sym;
+          peakDay = d;
+        }
+      });
+    }
+    
+    if (maxVal === 0) return "No active plot";
+    return `${maxSym}: ${maxVal}/10 on Day ${peakDay}`;
+  };
+
+  const getTrendArrow = () => {
+    if (simulateTreatment) {
+      return { text: "↘ Resolving (Treatment Active)", color: "text-emerald-400" };
+    }
+    return { text: "↗ Escalating (No Therapy)", color: "text-red-500" };
+  };
+
+  const handleToggleSymptomPlot = (sym: string) => {
+    if (activePlotSymptoms.includes(sym)) {
+      setActivePlotSymptoms(activePlotSymptoms.filter(s => s !== sym));
+    } else {
+      setActivePlotSymptoms([...activePlotSymptoms, sym]);
+    }
+  };
+
+  const timelineData = Array.from({ length: timelineDays }, (_, i) => {
+    const day = i + 1;
+    const item: any = {
+      day,
+      dayLabel: `Day ${day}`
+    };
+    
+    activePlotSymptoms.forEach(sym => {
+      let severity = getBaseSeverity(sym, day);
+      if (simulateTreatment && day >= treatmentDay) {
+        const decayPeriod = day - treatmentDay;
+        const decayVal = Math.pow(0.55, decayPeriod);
+        severity = parseFloat((severity * decayVal).toFixed(1));
+      }
+      item[sym] = severity;
+    });
+    
+    return item;
+  });
+
+  const allAvailableSymptoms = response?.extracted?.symptoms || ["fever", "headache", "body_weakness"];
 
   // Auto-fill coordinates based on selected simulated epidemiological zone
   const getZoneCoordinates = (regionName: string) => {
@@ -472,6 +670,211 @@ export default function DiagnosticsSuite({ onAddDiagnosticQuery, mockLocations }
                 </div>
               </div>
             )}
+
+            {/* Symptom Progression Timeline (Recharts) */}
+            <div className="bento-card p-6 space-y-4" id="symptom_progression_timeline">
+              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-3 gap-3">
+                <div>
+                  <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
+                    <Activity className="w-3.5 h-3.5 animate-pulse text-sky-500" />
+                    TEMPORAL PROGNOSIS SYSTEM
+                  </span>
+                  <h3 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
+                    Symptom Progression & Timeline Modeling
+                  </h3>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {/* Simulate Therapy button/toggle */}
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 cursor-pointer select-none hover:bg-emerald-500/20 transition">
+                    <input 
+                      type="checkbox" 
+                      checked={simulateTreatment} 
+                      onChange={(e) => setSimulateTreatment(e.target.checked)}
+                      className="rounded border-white/10 text-emerald-600 focus:ring-emerald-500 bg-slate-950/40"
+                    />
+                    <span className="font-semibold text-[9px] uppercase tracking-wider font-mono">Simulate Therapy</span>
+                  </label>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                Visualizing how symptoms wax and wane over a simulated <span className="text-sky-400 font-semibold">{timelineDays}-day pathogenetic duration</span>. Interact with selectors below to hide or reveal individual symptom timeline tracks.
+              </p>
+
+              {/* Active Symptoms Multi-Select Badges */}
+              <div className="space-y-1.5">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Active Symptom Overlays:</span>
+                <div className="flex flex-wrap gap-2">
+                  {allAvailableSymptoms.map((sym) => {
+                    const isSelected = activePlotSymptoms.includes(sym);
+                    return (
+                      <button
+                        key={sym}
+                        type="button"
+                        onClick={() => handleToggleSymptomPlot(sym)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition flex items-center gap-1.5 ${
+                          isSelected 
+                            ? 'bg-sky-500/10 border-sky-500 text-sky-400 font-bold' 
+                            : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-sky-450 animate-pulse' : 'bg-slate-600'}`} />
+                        {sym}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Controls row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-xl border border-white/5 text-xs">
+                {/* Duration slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">
+                    <span>Infection Duration</span>
+                    <span className="text-sky-400 font-mono">{timelineDays} Days</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="5" 
+                    max="14" 
+                    value={timelineDays} 
+                    onChange={(e) => {
+                      const newTimelineDays = parseInt(e.target.value);
+                      setTimelineDays(newTimelineDays);
+                      if (treatmentDay >= newTimelineDays) {
+                        setTreatmentDay(newTimelineDays - 1);
+                      }
+                    }}
+                    className="w-full accent-sky-500 cursor-pointer" 
+                  />
+                </div>
+
+                {/* Treatment simulation slider */}
+                <div className={`space-y-1.5 transition-opacity ${simulateTreatment ? 'opacity-100' : 'opacity-40'}`}>
+                  <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">
+                    <span>Clinical Intervention Day</span>
+                    <span className={`${simulateTreatment ? 'text-emerald-400 font-mono font-bold' : 'text-slate-500 font-mono'}`}>
+                      {simulateTreatment ? `Day ${treatmentDay}` : 'N/A (Off)'}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max={timelineDays - 1}
+                    value={treatmentDay}
+                    disabled={!simulateTreatment}
+                    onChange={(e) => setTreatmentDay(parseInt(e.target.value))}
+                    className="w-full accent-emerald-500 disabled:cursor-not-allowed cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Recharts Timeline Plots */}
+              <div className="h-64 bg-[#050B1A]/40 rounded-xl border border-white/5 p-4 relative">
+                {activePlotSymptoms.length === 0 ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                    <span className="text-xs text-slate-500">No active symptom tracks selected.</span>
+                    <span className="text-[10px] text-slate-600 mt-1">Select one or more templates in the badge section above.</span>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={timelineData} margin={{ top: 10, right: 15, left: -25, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255, 255, 255, 0.08)" />
+                      <XAxis dataKey="dayLabel" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={10} domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#0a1120', 
+                          borderColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '12px',
+                          color: '#cbd5e1',
+                          fontSize: '11px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)'
+                        }} 
+                      />
+                      <Legend 
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }}
+                      />
+                      
+                      {simulateTreatment && (
+                        <ReferenceLine 
+                          x={`Day ${treatmentDay}`} 
+                          stroke="#10b981" 
+                          strokeDasharray="3 3"
+                          label={{ 
+                            value: 'Intervention Onset', 
+                            position: 'insideTopRight', 
+                            fill: '#059669', 
+                            fontSize: 9,
+                            fontWeight: 'bold'
+                          }} 
+                        />
+                      )}
+
+                      {activePlotSymptoms.map((sym, index) => {
+                        const colors = [
+                          '#38bdf8', // sky-400
+                          '#f43f5e', // rose-500
+                          '#fbbf24', // amber-400
+                          '#a78bfa', // violet-400
+                          '#34d399', // emerald-400
+                          '#f97316', // orange-500
+                          '#60a5fa'  // blue-405
+                        ];
+                        const strokeColor = colors[index % colors.length];
+                        return (
+                          <Line 
+                            key={sym}
+                            type="monotone" 
+                            dataKey={sym} 
+                            stroke={strokeColor} 
+                            strokeWidth={2.5}
+                            dot={{ r: 3, strokeWidth: 1 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* Chronological Phase Metrics Cards */}
+              <div className="bg-[#0a1120]/45 border border-white/5 p-4 rounded-xl space-y-2">
+                <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">Chronological Phase Assessment</span>
+                  <span className="px-2 py-0.5 bg-sky-500/10 text-sky-400 text-[10px] font-mono font-bold rounded border border-sky-500/20 uppercase tracking-widest">
+                    {getTimelinePhase(timelineDays, simulateTreatment, treatmentDay)}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-slate-950/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold font-mono">Peak Severity</span>
+                    <span className="font-extrabold text-slate-200 mt-0.5 block truncate">{getPeakSeverityMetric()}</span>
+                  </div>
+                  <div className="bg-slate-950/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold font-mono">Current Trend</span>
+                    <span className={`font-extrabold mt-0.5 block ${getTrendArrow().color}`}>{getTrendArrow().text}</span>
+                  </div>
+                  <div className="bg-slate-950/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold font-mono">Therapy Decay</span>
+                    <span className="font-extrabold text-slate-300 mt-0.5 block">
+                      {simulateTreatment ? 'Active (55%/day)' : 'Unavailable'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-950/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold font-mono">Model Match</span>
+                    <span className="font-extrabold text-sky-400 mt-0.5 block truncate">
+                      {activeDisease ? activeDisease.name : 'None'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Nearest Clinical Facilities */}
             <div className="bento-card p-6 space-y-4">
