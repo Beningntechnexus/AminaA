@@ -148,7 +148,7 @@ export default function AdminSuite({ diseases, outbreaks, models, logs, onRefres
   return (
     <div className="space-y-6" id="admin_command_deck">
       {/* Systems Status Summary Header Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bento-card p-4 shadow-sm text-xs">
           <span className="text-slate-400 block font-bold uppercase tracking-widest text-[9px]">Spatio Diseases</span>
           <span className="text-2xl font-black text-slate-800 dark:text-white font-mono mt-1 block">{diseases.length}</span>

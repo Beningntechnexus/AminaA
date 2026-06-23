@@ -124,6 +124,7 @@ export default function App() {
   const [models, setModels] = useState<MLModelMetrics[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeNotificationToast, setActiveNotificationToast] = useState<string | null>(null);
 
   // Fetch initial databases
   const fetchLocalDatabase = () => {
@@ -291,6 +292,12 @@ export default function App() {
               </svg>
             </div>
           </div>
+          {/* DEVELOPER CREDIT TAG */}
+          <div className="mt-4 px-2 py-1 select-none text-center border-t border-slate-150/40 dark:border-white/5 pt-3">
+            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+              Developer: <span className="text-indigo-600 dark:text-sky-450 font-extrabold block mt-0.5">Ibrahim Amina Ali</span>
+            </p>
+          </div>
         </div>
       </aside>
 
@@ -331,10 +338,13 @@ export default function App() {
 
             <div className="pt-4 border-t border-slate-150">
               <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl text-center text-[10px] space-y-2">
-                <p className="text-slate-400 font-medium">Need immediate medical answers?</p>
+                <p className="text-slate-600 dark:text-slate-400 font-bold">Need immediate medical answers?</p>
                 <a href="tel:112" className="block py-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg transition uppercase">
                   Emergency Contacts
                 </a>
+              </div>
+              <div className="mt-4 text-center text-[10px] font-bold text-slate-600 dark:text-slate-350">
+                Developer: <span className="text-indigo-600 dark:text-sky-400 font-black">Ibrahim Amina Ali</span>
               </div>
             </div>
           </aside>
@@ -345,16 +355,16 @@ export default function App() {
       <div className="flex-1 flex flex-col min-h-screen relative overflow-x-hidden">
         
         {/* UPPER STATUS STRIP (Aesthetic details) */}
-        <div className="bg-sky-950/90 text-sky-400 py-2.5 px-4 text-[9px] font-bold font-mono tracking-widest flex items-center justify-between text-center select-none border-b border-sky-500/20 z-20">
+        <div className="bg-[#0b1329] text-cyan-300 py-2.5 px-4 text-[9px] font-extrabold font-mono tracking-widest flex items-center justify-between text-center select-none border-b border-sky-500/20 z-20">
           <div className="flex items-center gap-2 mx-auto">
-            <Activity className="w-3.5 h-3.5 animate-pulse text-sky-400" />
-            <span>MEDSPATIAL AI • CLIMATE VECTOR FORECAST WEIGHTING MATRIX ACTIVE • HIPAA COMPLIANT</span>
+            <Activity className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+            <span>MEDSPATIAL AI • DEVELOPED BY IBRAHIM AMINA ALI • CLIMATE VECTOR RISK FORECAST ACTIVE • HIPAA SECURED</span>
           </div>
         </div>
 
         {/* PRIMARY HEADER BAR (Greeting, Notifications, Profile) */}
         <header className={`py-4 px-6 md:px-8 border-b flex items-center justify-between sticky top-0 z-30 backdrop-blur-md ${
-          darkMode ? 'bg-[#050B13]/85 border-white/5' : 'bg-[#F8FAFC]/90 border-slate-200/60'
+          darkMode ? 'bg-[#050B13]/85 border-white/5' : 'bg-white/95 border-slate-200/60'
         }`}>
           {/* Mobile hamburger row */}
           <div className="flex items-center gap-3">
@@ -366,11 +376,11 @@ export default function App() {
             </button>
             
             <div>
-              <h2 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+              <h2 className="text-lg md:text-2xl font-black text-slate-950 dark:text-white flex items-center gap-1.5">
                 Good morning, Adaeze 
                 <span className="inline-block animate-[wiggle_1s_infinite]">👋</span>
               </h2>
-              <p className="text-[10px] md:text-xs text-slate-400 font-semibold dark:text-slate-450 mt-0.5">
+              <p className="text-[10px] md:text-sm text-slate-600 dark:text-slate-300 font-bold mt-0.5">
                 How are you feeling today? Let's find out.
               </p>
             </div>
@@ -381,7 +391,7 @@ export default function App() {
             {/* Notification trigger with count 3 */}
             <button 
               onClick={() => {
-                alert("Clinical Diagnostics Hub Notification: 3 new region-specific mosquito vector updates detected near Lagos!");
+                setActiveNotificationToast("Diagnostics Alert: 3 active mosquito vector spikes flagged near Lagos. Outbreaks are indexed on the local Spatial Hub.");
               }}
               className="p-2.5 rounded-full relative transition border shadow-sm cursor-pointer hover:scale-105 active:scale-95 bg-white dark:bg-[#0A1121] border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-300"
             >
@@ -561,7 +571,7 @@ export default function App() {
                           <tr className="bg-slate-100 dark:bg-slate-900/60 uppercase text-[9px] font-black tracking-widest text-[#94A3B8] border-b border-light/5">
                             <th className="p-4">Timestamp</th>
                             <th className="p-4">Queried Symptoms</th>
-                            <th className="p-4">Extracted Geozone</th>
+                            <th className="p-4 hidden sm:table-cell">Extracted Geozone</th>
                             <th className="p-4">Top Disease Index</th>
                             <th className="p-4">Risk Severity</th>
                           </tr>
@@ -573,7 +583,7 @@ export default function App() {
                               <td className="p-4 text-slate-650 dark:text-slate-300 max-w-xs truncate" title={log.queryText}>
                                 {log.queryText}
                               </td>
-                              <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">Lagos Corridor (Sub-Saharan Grid)</td>
+                              <td className="p-4 text-slate-700 dark:text-slate-300 font-medium hidden sm:table-cell">Lagos Corridor (Sub-Saharan Grid)</td>
                               <td className="p-4 font-semibold text-indigo-500 dark:text-sky-450">{log.predictedClass}</td>
                               <td className="p-4">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -728,7 +738,7 @@ export default function App() {
 
         {/* CLINICAL DISCLAIMER BAR IN FOOTER */}
         <footer className={`border-t py-6 mt-12 transition-colors ${
-          darkMode ? 'bg-[#0A1121]/60 border-white/5 text-slate-500' : 'bg-[#F1F5FD]/60 border-slate-200/60 text-slate-450'
+          darkMode ? 'bg-[#0A1121]/60 border-white/5 text-slate-400' : 'bg-[#E2E8F0]/30 border-slate-250 text-slate-700'
         }`}>
           <div className="max-w-7xl mx-auto px-6 md:px-8 text-center space-y-3.5">
             {/* Disclaimer pill */}
@@ -739,11 +749,32 @@ export default function App() {
               </p>
             </div>
             
-            <p className="font-mono text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest leading-relaxed">
-              MedSpatial AI Pro v3.4 • Powered by Spatio-Temporal Machine Learning & Seasonal Vector Models
+            <p className="font-mono text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest leading-relaxed font-bold">
+              MedSpatial AI Pro v3.4 • Developed by <span className="text-indigo-600 dark:text-sky-400 font-black">Ibrahim Amina Ali</span> • Powered by Spatio-Temporal Machine Learning & Seasonal Vector Models
             </p>
           </div>
         </footer>
+
+        {/* Floating Notification Toast */}
+        {activeNotificationToast && (
+          <div className="fixed bottom-6 right-6 left-6 sm:left-auto md:max-w-md bg-slate-900 border border-white/10 p-4 rounded-xl shadow-2xl flex items-start gap-3 z-50 animate-fade-in text-xs">
+            <div className="p-2 bg-sky-500/15 rounded-lg text-sky-400 shrink-0">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-[9px] uppercase tracking-widest font-black text-slate-400">System Dispatcher</span>
+                <button 
+                  onClick={() => setActiveNotificationToast(null)}
+                  className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-slate-200 font-medium leading-relaxed">{activeNotificationToast}</p>
+            </div>
+          </div>
+        )}
 
       </div>
 

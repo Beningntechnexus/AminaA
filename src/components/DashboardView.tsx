@@ -251,7 +251,7 @@ export default function DashboardView({
           Your Health Overview
         </h3>
         
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* KPI 1: Purple Predictions */}
           <div className="bento-card p-5 flex flex-col justify-between hover:scale-101 border-indigo-500/10 hover:border-indigo-500/20 active:scale-99 cursor-pointer transition" onClick={() => setActiveTab('diagnostics')}>

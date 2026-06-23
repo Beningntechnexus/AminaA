@@ -32,21 +32,31 @@
 
 /* Custom premium bento utility classes */
 body {
-  background-color: #050B1A;
-  color: #cbd5e1;
+  background-color: #F8FAFC;
+  color: #1e293b;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+.dark body {
+  background-color: #050B13;
+  color: #cbd5e1;
+}
+
 /* Bento glass background */
 .bento-card {
-  background: rgba(10, 17, 32, 0.45);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.85);
   border-radius: 1.25rem; /* 20px */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark .bento-card {
+  background: rgba(10, 17, 32, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .bento-card:hover {
