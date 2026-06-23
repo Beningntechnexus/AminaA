@@ -21,6 +21,7 @@ interface DiagnosticsSuiteProps {
   setLoading?: (v: boolean) => void;
   response?: DiagnoseResponse | null;
   setResponse?: (v: DiagnoseResponse | null) => void;
+  currentUser?: any;
 }
 
 export default function DiagnosticsSuite({ 
@@ -35,7 +36,8 @@ export default function DiagnosticsSuite({
   loading: propsLoading,
   setLoading: propsSetLoading,
   response: propsResponse,
-  setResponse: propsSetResponse
+  setResponse: propsSetResponse,
+  currentUser
 }: DiagnosticsSuiteProps) {
   const [internalSymptomsText, setInternalSymptomsText] = useState("I have headache, sudden high fever, chills, and muscle weakness with some joint stiffness.");
   const symptomsText = propsSymptomsText !== undefined ? propsSymptomsText : internalSymptomsText;
@@ -235,7 +237,13 @@ export default function DiagnosticsSuite({
     }
   };
 
-  const currentZoneInfo = getZoneCoordinates(selectedRegion);
+  const currentZoneInfo = currentUser ? {
+    country: currentUser.country,
+    state: currentUser.state,
+    city: currentUser.city,
+    lat: Number(currentUser.lat) || 6.5244,
+    lng: Number(currentUser.lng) || 3.3792
+  } : getZoneCoordinates(selectedRegion);
 
   // Load appropriate nearby facilities based on selected region
   useEffect(() => {
@@ -398,24 +406,31 @@ export default function DiagnosticsSuite({
             {/* Geographical Parameters */}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center font-sans">
                   <MapPin className="w-3.5 h-3.5 text-sky-500 mr-1" /> Regional Hotspot Zone
                 </label>
-                <button
-                  type="button"
-                  onClick={simulateGPS}
-                  disabled={gpsSimulating}
-                  className="text-xs text-sky-500 hover:text-sky-600 flex items-center gap-1 font-medium bg-sky-50/60 dark:bg-sky-950/50 px-2 py-1 rounded-md transition"
-                >
-                  <RefreshCw className={`w-3 h-3 ${gpsSimulating ? 'animate-spin' : ''}`} />
-                  {gpsSimulating ? "GPS Tracking..." : "Simulate Location"}
-                </button>
+                {currentUser ? (
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                    <ShieldCheck className="w-3 h-3" /> VERIFIED PATIENT NODE
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={simulateGPS}
+                    disabled={gpsSimulating}
+                    className="text-[10px] text-sky-500 hover:text-sky-600 flex items-center gap-1 font-medium bg-sky-50/60 dark:bg-sky-950/50 px-2 py-1 rounded-md transition"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${gpsSimulating ? 'animate-spin' : ''}`} />
+                    {gpsSimulating ? "GPS Tracking..." : "Simulate Location"}
+                  </button>
+                )}
               </div>
 
               <select
                 value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 rounded-xl text-sm focus:outline-none transition"
+                onChange={(e) => !currentUser && setSelectedRegion && setSelectedRegion(e.target.value)}
+                disabled={!!currentUser}
+                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 rounded-xl text-sm focus:outline-none transition ${currentUser ? 'opacity-85 cursor-not-allowed border-emerald-500/20 bg-emerald-50/5 dark:bg-emerald-950/5' : ''}`}
               >
                 <option value="Sub-Saharan Rainy Corridor">Sub-Saharan Rainy Corridor (Nematode Vectors)</option>
                 <option value="Tropical Coastal Plain">Tropical Coastal Plain (Marine Sanitation Risk)</option>
@@ -424,15 +439,15 @@ export default function DiagnosticsSuite({
                 <option value="Dense Urban Metro">Dense Urban Metro (Airborne transmission focus)</option>
               </select>
 
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-100 dark:border-slate-900/60 text-xs text-slate-600 dark:text-slate-400">
+              <div className={`grid grid-cols-2 gap-3 p-3 rounded-xl border text-xs transition ${currentUser ? 'border-emerald-500/15 bg-emerald-500/5 dark:bg-emerald-500/5' : 'bg-slate-50 dark:bg-slate-950/50 border-slate-100 dark:border-slate-900/60'}`}>
                 <div>
-                  <span className="block text-slate-400">Simulated City</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-300">{currentZoneInfo.city}</span>
+                  <span className="block text-slate-400 text-[10px] uppercase font-mono font-bold">Registered Location</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{currentUser ? `${currentUser.city}, ${currentUser.state}` : currentZoneInfo.city}</span>
                 </div>
                 <div>
-                  <span className="block text-slate-400">Coordinates</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-300 font-mono">
-                    {currentZoneInfo.lat.toFixed(3)}°N, {currentZoneInfo.lng.toFixed(3)}°E
+                  <span className="block text-slate-400 text-[10px] uppercase font-mono font-bold">Exact Coordinates</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                    {currentZoneInfo.lat.toFixed(4)}°N, {currentZoneInfo.lng.toFixed(4)}°E
                   </span>
                 </div>
               </div>
@@ -440,41 +455,56 @@ export default function DiagnosticsSuite({
 
             {/* Seasonal Controls */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center">
-                Seasonal Vector Control
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest flex items-center font-sans">
+                  Seasonal Vector Control
+                </label>
+                {currentUser && (
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                    <ShieldCheck className="w-3 h-3" /> MATCHED PROFILE SEASON
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                {(['Rainy', 'Dry', 'Harmattan'] as Season[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSeason(s)}
-                    className={`py-2 text-xs font-medium rounded-xl border transition flex items-center justify-center ${
-                      season === s 
-                        ? 'bg-sky-50 border-sky-300 text-sky-600 dark:bg-sky-950/60 dark:border-sky-800' 
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
-                    }`}
-                  >
-                    {getSeasonIcon(s)}
-                    {s}
-                  </button>
-                ))}
+                {(['Rainy', 'Dry', 'Harmattan'] as Season[]).map((s) => {
+                  const isLocked = currentUser && currentUser.season !== s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => !currentUser && setSeason && setSeason(s)}
+                      className={`py-2 text-xs font-medium rounded-xl border transition flex items-center justify-center gap-1 ${
+                        season === s 
+                          ? 'bg-sky-50 border-sky-300 text-sky-600 dark:bg-sky-950/60 dark:border-sky-850' 
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
+                      } ${isLocked ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-950 border-slate-100 dark:border-slate-900' : ''}`}
+                    >
+                      {getSeasonIcon(s)}
+                      {s}
+                    </button>
+                  );
+                })}
               </div>
               <div className="flex gap-2 justify-center opacity-70">
-                {(['Spring', 'Summer', 'Autumn', 'Winter'] as Season[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSeason(s)}
-                    className={`px-2 py-0.5 text-[10px] rounded border transition ${
-                      season === s 
-                        ? 'bg-sky-50 border-sky-300 text-sky-600 dark:bg-sky-950/60 dark:border-sky-800' 
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {(['Spring', 'Summer', 'Autumn', 'Winter'] as Season[]).map((s) => {
+                  const isLocked = currentUser && currentUser.season !== s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => !currentUser && setSeason && setSeason(s)}
+                      className={`py-1 px-2 text-[10px] font-medium rounded-lg border transition ${
+                        season === s 
+                          ? 'bg-sky-50 border-sky-300 text-sky-600 dark:bg-sky-950/60 dark:border-sky-850' 
+                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-400'
+                      } ${isLocked ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-950 border-slate-100 dark:border-slate-900' : ''}`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

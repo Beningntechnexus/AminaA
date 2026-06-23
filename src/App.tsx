@@ -12,6 +12,9 @@ import EpidemiologyCharts from './components/EpidemiologyCharts';
 import AdminSuite from './components/AdminSuite';
 import ChatAssistant from './components/ChatAssistant';
 import DashboardView from './components/DashboardView';
+import LoadingScreen from './components/LoadingScreen';
+import IntroScreen from './components/IntroScreen';
+import AuthScreen from './components/AuthScreen';
 import { Disease, Outbreak, MLModelMetrics, AuditLog, DiagnoseResponse, Season } from './types';
 
 // Pre-hydrate default predictions so the home view looks exactly like the requested mock UI on load!
@@ -107,6 +110,10 @@ const defaultPredictionResponse: DiagnoseResponse = {
 };
 
 export default function App() {
+  const [appLoaded, setAppLoaded] = useState(false);
+  const [introCompleted, setIntroCompleted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'diagnostics' | 'heatmap' | 'epidemiology' | 'chat' | 'admin' | 'outbreaks' | 'saved' | 'profile'>('dashboard');
   const [darkMode, setDarkMode] = useState(false); // Start as Light Mode as requested by UI screenshot!
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -125,6 +132,39 @@ export default function App() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeNotificationToast, setActiveNotificationToast] = useState<string | null>(null);
+
+  // Pre-hydrate persistent login sessions
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setIntroCompleted(true);
+      } catch (e) {
+        console.error("Error hydrating user session", e);
+      }
+    }
+  }, []);
+
+  // Sync user location and season with interactive selectors
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.region) {
+        setSelectedRegion(currentUser.region);
+      }
+      if (currentUser.season) {
+        setSeason(currentUser.season);
+      }
+    }
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    setIntroCompleted(false);
+    setActiveTab('dashboard');
+  };
 
   // Fetch initial databases
   const fetchLocalDatabase = () => {
@@ -211,6 +251,33 @@ export default function App() {
     setActiveTab(tabId);
     setMobileSidebarOpen(false);
   };
+
+  if (!appLoaded) {
+    return <LoadingScreen onFinish={() => setAppLoaded(true)} />;
+  }
+
+  if (!introCompleted) {
+    return (
+      <IntroScreen 
+        onComplete={() => setIntroCompleted(true)} 
+        darkMode={darkMode} 
+        setDarkMode={setDarkMode} 
+      />
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthScreen 
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          localStorage.setItem('currentUser', JSON.stringify(user));
+        }} 
+        darkMode={darkMode} 
+        setDarkMode={setDarkMode} 
+      />
+    );
+  }
 
   return (
     <div className={`min-h-screen flex ${
@@ -377,7 +444,7 @@ export default function App() {
             
             <div>
               <h2 className="text-lg md:text-2xl font-black text-slate-950 dark:text-white flex items-center gap-1.5">
-                Good morning, Adaeze 
+                Good morning, {currentUser?.name || "Adaeze"} 
                 <span className="inline-block animate-[wiggle_1s_infinite]">👋</span>
               </h2>
               <p className="text-[10px] md:text-sm text-slate-600 dark:text-slate-300 font-bold mt-0.5">
@@ -411,13 +478,16 @@ export default function App() {
             </button>
 
             {/* Profile Circle Adaeze */}
-            <div className="flex items-center gap-1 bg-white dark:bg-[#0A1121] py-1 pl-1.5 pr-2.5 rounded-full border border-slate-200 dark:border-white/10 shadow-sm cursor-pointer hover:bg-slate-50 transition">
+            <div className="flex items-center gap-1 bg-white dark:bg-[#0A1121] py-1 pl-1.5 pr-2.5 rounded-full border border-slate-200 dark:border-white/10 shadow-sm cursor-pointer hover:bg-slate-50 transition" onClick={() => setActiveTab('profile')}>
               <img 
                 src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200" 
-                alt="Adaeze" 
+                alt={currentUser?.name || "Adaeze"} 
                 className="w-8 h-8 rounded-full object-cover shrink-0 border border-sky-500/20"
                 referrerPolicy="no-referrer"
               />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-350 ml-1 truncate max-w-[80px]">
+                {currentUser?.name?.split(' ')[0] || "Adaeze"}
+              </span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 select-none ml-1.5" />
             </div>
           </div>
@@ -447,6 +517,7 @@ export default function App() {
                   setActiveTab={setActiveTab}
                   outbreaks={outbreaks}
                   loading={diagnosticLoading}
+                  currentUser={currentUser}
                 />
               )}
 
@@ -470,6 +541,7 @@ export default function App() {
                     setLoading={setDiagnosticLoading}
                     response={response}
                     setResponse={setResponse}
+                    currentUser={currentUser}
                   />
                 </div>
               )}
@@ -659,15 +731,17 @@ export default function App() {
 
               {/* USER PROFILE VIEW */}
               {activeTab === 'profile' && (
-                <div className="space-y-6">
+                <div className="space-y-6" id="patient_profile_view">
                   <div>
                     <span className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold flex items-center gap-1.5 font-mono">
                       <User className="w-3.5 h-3.5 text-sky-500" />
-                      PATIENT ACCOUNT SETTINGS
+                      REGISTERED PATIENT ACCOUNT NODE
                     </span>
-                    <h3 className="text-xl font-black text-slate-800 dark:text-white">Adaeze's Clinical Dashboard Account</h3>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white">
+                      {currentUser?.name || "Adaeze"}'s Clinical Dashboard Account
+                    </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      Review biological parameters and default geographic zones to expedite diagnostic model matches.
+                      Review bio-geographic parameters and locked climatic variables assigned to this patient identity node.
                     </p>
                   </div>
 
@@ -676,27 +750,56 @@ export default function App() {
                       <div className="flex flex-col items-center">
                         <img 
                           src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200" 
-                          alt="Adaeze" 
-                          className="w-24 h-24 rounded-full object-cover border-4 border-indigo-500/20"
+                          alt={currentUser?.name || "Adaeze"} 
+                          className="w-24 h-24 rounded-full object-cover border-4 border-emerald-500/15"
                           referrerPolicy="no-referrer"
                         />
-                        <h4 className="text-lg font-black text-slate-800 dark:text-white mt-4">Adaeze Nwosu</h4>
-                        <span className="text-[10px] text-slate-400 font-mono">Patient Reference: #MEDSPATIAL-82A</span>
+                        <h4 className="text-lg font-black text-slate-800 dark:text-white mt-4">
+                          {currentUser?.name || "Adaeze Nwosu"}
+                        </h4>
+                        <span className="text-[10px] text-slate-450 font-mono">
+                          Patient ID: #MED-{currentUser?.id?.substring(0, 8).toUpperCase() || "SPATIAL-82A"}
+                        </span>
                       </div>
 
-                      <div className="border-t border-light/5 pt-4 space-y-2 text-xs text-left">
+                      <div className="border-t border-slate-100 dark:border-white/5 pt-4 space-y-2.5 text-xs text-left">
                         <div className="flex justify-between">
-                          <span className="text-slate-450">Primary Region:</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-300">Lagos, Nigeria</span>
+                          <span className="text-slate-400">Registered Email:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={currentUser?.email || "adaeze@medspatial.ai"}>
+                            {currentUser?.email || "adaeze@medspatial.ai"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-450">Age category:</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-300">Young Adult (28)</span>
+                          <span className="text-slate-400">Exact Location:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">
+                            {currentUser ? `${currentUser.city}, ${currentUser.state}` : "Lagos, Nigeria"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-450">HIPAA Flag:</span>
-                          <span className="font-bold text-emerald-500">Secured Encrypted</span>
+                          <span className="text-slate-400">Regional Hotspot:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={currentUser?.region || "Sub-Saharan Rainy Corridor"}>
+                            {currentUser?.region || "Sub-Saharan Rainy Corridor"}
+                          </span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Current Season:</span>
+                          <span className="font-bold text-sky-500">
+                            {currentUser?.season || "Rainy"} Season
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400 font-bold text-emerald-600 dark:text-emerald-400">HIPAA Status:</span>
+                          <span className="font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">Verified Encrypted</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full py-2 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500 text-xs font-bold rounded-xl border border-rose-500/20 hover:border-rose-500 transition cursor-pointer"
+                        >
+                          Logout of Session Node
+                        </button>
                       </div>
                     </div>
 

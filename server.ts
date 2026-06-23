@@ -314,7 +314,98 @@ function extractSymptomsHeuristic(symptomsText: string) {
   };
 }
 
+// User Profile Database & Authentication System
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  country: string;
+  state: string;
+  city: string;
+  region: string;
+  lat: number;
+  lng: number;
+  season: 'Rainy' | 'Dry' | 'Harmattan' | 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+}
+
+let users: UserProfile[] = [
+  {
+    id: "user-adaeze",
+    name: "Adaeze",
+    email: "adaeze@medspatial.ai",
+    password: "password123",
+    country: "Nigeria",
+    state: "Lagos",
+    city: "Lagos City",
+    region: "Sub-Saharan Rainy Corridor",
+    lat: 6.5244,
+    lng: 3.3792,
+    season: "Rainy"
+  }
+];
+
 // REST APIs
+// Auth endpoints
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim() && u.password === password);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+  const { password: _, ...safeUser } = user;
+  res.json({ success: true, user: safeUser });
+});
+
+app.post("/api/auth/register", (req, res) => {
+  const { name, email, password, country, state, city, region, season, lat, lng } = req.body;
+  if (!name || !email || !password || !country || !state || !city || !region || !season) {
+    return res.status(400).json({ error: "All registration fields are required" });
+  }
+  const exists = users.some(u => u.email.toLowerCase() === email.toLowerCase().trim());
+  if (exists) {
+    return res.status(400).json({ error: "Email is already registered" });
+  }
+
+  // Generate reasonable coordinates for the user if they did not provide specific lat/lng
+  let resolvedLat = lat ? Number(lat) : 6.5244;
+  let resolvedLng = lng ? Number(lng) : 3.3792;
+
+  // Let's vary the coordinates slightly based on the region if lat/lng are empty to represent distinct localized nodes
+  if (!lat || !lng) {
+    if (region === "Tropical Coastal Plain") {
+      resolvedLat = 4.75; resolvedLng = 7.0; // Port Harcourt area
+    } else if (region === "Harmattan Dustlands") {
+      resolvedLat = 12.0; resolvedLng = 8.5; // Kano area
+    } else if (region === "Arid Northern Province") {
+      resolvedLat = 13.0; resolvedLng = 5.2; // Sokoto area
+    } else if (region === "Dense Urban Metro") {
+      resolvedLat = 6.45; resolvedLng = 3.4; // Lagos center
+    }
+  }
+
+  const newUser: UserProfile = {
+    id: `user-${Date.now()}`,
+    name,
+    email: email.toLowerCase().trim(),
+    password,
+    country,
+    state,
+    city,
+    region,
+    lat: resolvedLat,
+    lng: resolvedLng,
+    season
+  };
+
+  users.push(newUser);
+  const { password: _, ...safeUser } = newUser;
+  res.json({ success: true, user: safeUser });
+});
+
 // 1. Get Diseases
 app.get("/api/diseases", (req, res) => {
   res.json(diseases);

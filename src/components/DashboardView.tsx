@@ -14,6 +14,7 @@ interface DashboardViewProps {
   setActiveTab: (tab: 'dashboard' | 'diagnostics' | 'heatmap' | 'epidemiology' | 'chat' | 'admin' | 'outbreaks' | 'saved' | 'profile') => void;
   outbreaks: Outbreak[];
   loading: boolean;
+  currentUser?: any;
 }
 
 export default function DashboardView({
@@ -22,7 +23,8 @@ export default function DashboardView({
   onAnalyze,
   setActiveTab,
   outbreaks,
-  loading
+  loading,
+  currentUser
 }: DashboardViewProps) {
 
   const handleQuickSubmit = (e: React.FormEvent) => {
@@ -305,7 +307,9 @@ export default function DashboardView({
           <div className="bento-card p-5 flex flex-col justify-between hover:scale-101 border-sky-500/10 hover:border-sky-500/20 active:scale-99 cursor-pointer transition" onClick={() => setActiveTab('heatmap')}>
             <div className="flex items-center justify-between">
               <div className="space-y-1 text-ellipsis overflow-hidden">
-                <span className="text-lg font-black text-sky-500 dark:text-sky-450 font-sans block truncate">Lagos, NG</span>
+                <span className="text-lg font-black text-sky-500 dark:text-sky-450 font-sans block truncate">
+                  {currentUser ? `${currentUser.city}, ${currentUser.country.substring(0, 2).toUpperCase()}` : "Lagos, NG"}
+                </span>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-250 block">Your Location</span>
               </div>
               <div className="p-3 bg-sky-500/10 rounded-xl border border-sky-500/20 shrink-0">
@@ -313,7 +317,7 @@ export default function DashboardView({
               </div>
             </div>
             <span className="text-[10px] text-slate-400 block mt-4 border-t border-slate-100 dark:border-white/5 pt-2">
-              Detected automatically
+              {currentUser ? "🛡️ Verified Patient Node" : "Detected automatically"}
             </span>
           </div>
 
@@ -369,7 +373,9 @@ export default function DashboardView({
                   </div>
                   <div>
                     <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">Location</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Lagos, Nigeria</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {currentUser ? `${currentUser.city}, ${currentUser.country}` : "Lagos, Nigeria"}
+                    </span>
                   </div>
                 </div>
 
@@ -380,7 +386,9 @@ export default function DashboardView({
                   </div>
                   <div>
                     <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">Season</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Rainy Season</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {currentUser ? `${currentUser.season} Season` : "Rainy Season"}
+                    </span>
                   </div>
                 </div>
               </div>
